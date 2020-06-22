@@ -1,6 +1,7 @@
 """
 Mastermind Game Play: Code Maker
 """
+import sys
 from argparse import ArgumentParser
 from random import choice
 from itertools import product, permutations
@@ -42,23 +43,29 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
                 result = result[1:] + RIGHT_COLOR_AND_POSITION
         return result
 
+    def get_guess():
+        try:
+            guess = tuple(
+                int(ch) for ch in input('Make a guess: ').split() if 0 <= int(ch) < 10)
+        except KeyboardInterrupt:
+            print('\nBye!')
+            sys.exit(12)
+        except ValueError:
+            print(f'Your input must be: a series of {pins} single digits, separated by blanks.')
+            guess = None
+        if len(guess) != pins:
+            print(f'Please give {pins} digits, separated by blanks.')
+            guess = None
+        return guess
+
     secret_code, possible_codes = init()
     print(f'The secret code is one of {len(possible_codes)} possible combinations.')
     
     rounds = 0
     feedback = ''
     while feedback != '+' * pins:
-        try:
-            guess = tuple(
-                int(ch) for ch in input('Make a guess: ').split() if 0 <= int(ch) < 10)
-        except KeyboardInterrupt:
-            print('\nBye!')
-            return
-        except ValueError:
-            print(f'Your input must be: a series of {pins} single digits, separated by blanks.')
-            continue
-        if len(guess) != pins:
-            print(f'Please give {pins} digits, separated by blanks.')
+        guess = get_guess()
+        if not guess:
             continue
         rounds += 1
         feedback = compare_codes(secret_code, guess)

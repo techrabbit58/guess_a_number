@@ -79,17 +79,23 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == '__main__':
-    args = parse_args()
-    if len(args.digits) != args.num_pins:
-        print(f'Bad code: {args.digits}.')
-        print(f'Please give {args.num_pins} digits, separated by blanks.')
+def check_secret_code(args):
+    digits = args.digits
+    pins = args.num_pins
+    if len(digits) != args.num_pins:
+        print(f'Bad code: {digits}.')
+        print(f'Please give {pins} digits, separated by blanks.')
         sys.exit(4)
-    for d in args.digits:
+    for d in digits:
         if not 0 <= d < 10:
             print(f'Bad color: {d}.')
             print(f'All color codes must be single digits 0 <= d < 10.')
             sys.exit(4)
+    return args
+
+
+if __name__ == '__main__':
+    args = check_secret_code(parse_args())
     run(
         args.digits,
         colors=args.num_colors,
