@@ -6,7 +6,7 @@ from argparse import ArgumentParser
 from collections import Counter
 from itertools import product, permutations
 from random import choice
-from typing import List, Tuple, Iterable
+from typing import List, Tuple
 
 # variants
 STANDARD = 0
@@ -25,14 +25,14 @@ RIGHT_COLOR_AND_POSITION = '+'
 
 
 def run(code, *, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> None:
-    def init() -> Tuple[Tuple, List[Tuple]]:
+    def init() -> List[Tuple[int, ...]]:
         possible_codes = {
             STANDARD: lambda c, p: list(product(range(c), repeat=p)),
             NO_REPEATS: lambda c, p: list(permutations(range(c), p)),
         }[variant](colors, pins)
         return possible_codes
 
-    def compare_codes(a: Iterable, b: Iterable) -> str:
+    def compare_codes(a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
         if len(a) != len(b):
             raise ValueError('Can not compare iterables of different length.')
         result = RIGHT_COLOR * sum((Counter(a) & Counter(b)).values())
@@ -54,7 +54,7 @@ def run(code, *, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMA
 
     rounds = 0
     feedback = ''
-    remaining_codes = possible_codes.copy()
+    remaining_codes = possible_codes[:]
     while feedback != '+' * pins:
         guess = choice(remaining_codes)
         if len(guess) != pins:

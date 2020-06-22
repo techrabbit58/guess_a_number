@@ -3,10 +3,10 @@ Mastermind Game Play: Code Maker
 """
 import sys
 from argparse import ArgumentParser
-from random import choice
-from itertools import product, permutations
-from typing import Iterable, Tuple, List
 from collections import Counter
+from itertools import product, permutations
+from random import choice
+from typing import Tuple, List
 
 # variants
 STANDARD = 0
@@ -25,7 +25,6 @@ RIGHT_COLOR_AND_POSITION = '+'
 
 
 def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> None:
-
     def init() -> Tuple[Tuple, List[Tuple]]:
         possible_codes = {
             STANDARD: lambda c, p: list(product(range(c), repeat=p)),
@@ -33,8 +32,8 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
         }[variant](colors, pins)
         secret_code = choice(possible_codes)
         return secret_code, possible_codes
-        
-    def compare_codes(a: Iterable, b: Iterable) -> str:
+
+    def compare_codes(a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
         if len(a) != len(b):
             raise ValueError('Can not compare iterables of different length.')
         result = RIGHT_COLOR * sum((Counter(a) & Counter(b)).values())
@@ -60,7 +59,7 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
 
     secret_code, possible_codes = init()
     print(f'The secret code is one of {len(possible_codes)} possible combinations.')
-    
+
     rounds = 0
     feedback = ''
     while feedback != '+' * pins:
@@ -72,7 +71,7 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
         remaining_codes = len([
             code for code in possible_codes if compare_codes(code, guess) == feedback])
         print(f'{rounds}: {guess} -> {feedback:4} | other codes like this: {remaining_codes}')
-        
+
     print(f'Code {secret_code} cracked in {rounds} rounds.')
 
 
