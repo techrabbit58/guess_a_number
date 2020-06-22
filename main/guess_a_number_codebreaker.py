@@ -46,21 +46,17 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
     
     rounds = 0
     feedback = ''
+    remaining_codes = possible_codes.copy()
     while feedback != '+' * pins:
-        try:
-            guess = tuple(
-                int(ch) for ch in input('Make a guess: ').split() if 0 <= int(ch) < 10)
-        except KeyboardInterrupt:
-            print('\nBye!')
-            return
+        guess = choice(remaining_codes)
         if len(guess) != pins:
             print(f'Please give {pins} digits, separated by blanks.')
             continue
         rounds += 1
         feedback = compare_codes(secret_code, guess)
-        remaining_codes = len([
-            code for code in possible_codes if compare_codes(code, guess) == feedback])
-        print(f'{rounds}: {guess} -> {feedback:4} | other codes like this: {remaining_codes}')
+        remaining_codes = [
+            code for code in remaining_codes if compare_codes(code, guess) == feedback]
+        print(f'{rounds}: {guess} -> {feedback:4} | remaining choices: {len(remaining_codes)}')
         
     print(f'Code {secret_code} cracked in {rounds} rounds.')
 
