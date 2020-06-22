@@ -1,5 +1,5 @@
 """
-Mastermind Game Play
+Mastermind Game Play: Code Maker
 """
 from random import choice
 from itertools import product, permutations
