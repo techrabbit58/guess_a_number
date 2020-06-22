@@ -1,10 +1,12 @@
 """
 Mastermind Game Play: Code Breaker
 """
-from random import choice
-from itertools import product, permutations
-from typing import Iterable
+import sys
+from argparse import ArgumentParser
 from collections import Counter
+from itertools import product, permutations
+from random import choice
+from typing import List, Tuple, Iterable
 
 # variants
 STANDARD = 0
@@ -22,16 +24,14 @@ RIGHT_COLOR = 'o'
 RIGHT_COLOR_AND_POSITION = '+'
 
 
-def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> None:
-
-    def init() -> None:
+def run(code, *, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> None:
+    def init() -> Tuple[Tuple, List[Tuple]]:
         possible_codes = {
             STANDARD: lambda c, p: list(product(range(c), repeat=p)),
             NO_REPEATS: lambda c, p: list(permutations(range(c), p)),
         }[variant](colors, pins)
-        secret_code = choice(possible_codes)
-        return secret_code, possible_codes
-        
+        return possible_codes
+
     def compare_codes(a: Iterable, b: Iterable) -> str:
         if len(a) != len(b):
             raise ValueError('Can not compare iterables of different length.')
@@ -41,9 +41,17 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
                 result = result[1:] + RIGHT_COLOR_AND_POSITION
         return result
 
-    secret_code, possible_codes = init()
+    def reduce_choices() -> List[Tuple]:
+        return [
+            code
+            for code in remaining_codes
+            if compare_codes(code, guess) == feedback and code != guess
+        ]
+
+    secret_code = code
+    possible_codes = init()
     print(f'The secret code is one of {len(possible_codes)} possible combinations.')
-    
+
     rounds = 0
     feedback = ''
     remaining_codes = possible_codes.copy()
@@ -54,14 +62,39 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
             continue
         rounds += 1
         feedback = compare_codes(secret_code, guess)
-        remaining_codes = [
-            code for code in remaining_codes if compare_codes(code, guess) == feedback]
+        remaining_codes = reduce_choices()
         print(f'{rounds}: {guess} -> {feedback:4} | remaining choices: {len(remaining_codes)}')
-        
-    print(f'Code {secret_code} cracked in {rounds} rounds.')
+
+    print(f'You cracked the secret code {secret_code} with {rounds} tries.')
+
+
+def parse_args():
+    parser = ArgumentParser(description='Break the code like a mastermind!', usage='%(prog)s [options]')
+    parser.add_argument('digits', type=int, nargs='+', help='your code digits')
+    parser.add_argument('--colors', dest='num_colors', default=6, type=int,
+                        help='set the number of different colors (default = 6)')
+    parser.add_argument('--pins', dest='num_pins', default=4, type=int,
+                        help='set the number of code pins (default = 4)')
+    parser.add_argument('--no_repeats', action='store_true', help='do not repeat colors in code')
+    return parser.parse_args()
 
 
 if __name__ == '__main__':
-    run()
+    args = parse_args()
+    if len(args.digits) != args.num_pins:
+        print(f'Bad code: {args.digits}.')
+        print(f'Please give {args.num_pins} digits, separated by blanks.')
+        sys.exit(4)
+    for d in args.digits:
+        if not 0 <= d < 10:
+            print(f'Bad color: {d}.')
+            print(f'All color codes must be single digits 0 <= d < 10.')
+            sys.exit(4)
+    run(
+        args.digits,
+        colors=args.num_colors,
+        pins=args.num_pins,
+        variant=NO_REPEATS if args.no_repeats else STANDARD
+    )
 
 # last line of code

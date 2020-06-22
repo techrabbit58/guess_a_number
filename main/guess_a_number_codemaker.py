@@ -1,9 +1,10 @@
 """
 Mastermind Game Play: Code Maker
 """
+from argparse import ArgumentParser
 from random import choice
 from itertools import product, permutations
-from typing import Iterable
+from typing import Iterable, Tuple, List
 from collections import Counter
 
 # variants
@@ -24,7 +25,7 @@ RIGHT_COLOR_AND_POSITION = '+'
 
 def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> None:
 
-    def init() -> None:
+    def init() -> Tuple[Tuple, List[Tuple]]:
         possible_codes = {
             STANDARD: lambda c, p: list(product(range(c), repeat=p)),
             NO_REPEATS: lambda c, p: list(permutations(range(c), p)),
@@ -53,6 +54,9 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
         except KeyboardInterrupt:
             print('\nBye!')
             return
+        except ValueError:
+            print(f'Your input must be: a series of {pins} single digits, separated by blanks.')
+            continue
         if len(guess) != pins:
             print(f'Please give {pins} digits, separated by blanks.')
             continue
@@ -65,7 +69,22 @@ def run(*, variant: int = STANDARD, colors: int = BASIC, pins: int = NORMAL) -> 
     print(f'Code {secret_code} cracked in {rounds} rounds.')
 
 
+def parse_args():
+    parser = ArgumentParser(description='Make an unbreakable code like a mastermind!', usage='%(prog)s [options]')
+    parser.add_argument('--colors', dest='num_colors', default=6, type=int,
+                        help='set the number of different colors (default = 6)')
+    parser.add_argument('--pins', dest='num_pins', default=4, type=int,
+                        help='set the number of code pins (default = 4)')
+    parser.add_argument('--no_repeats', action='store_true', help='do not repeat colors in code')
+    return parser.parse_args()
+
+
 if __name__ == '__main__':
-    run()
+    args = parse_args()
+    run(
+        colors=args.num_colors,
+        pins=args.num_pins,
+        variant=NO_REPEATS if args.no_repeats else STANDARD
+    )
 
 # last line of code
