@@ -8,7 +8,6 @@ verify_ssl = true
 [packages]
 autopep8 = "*"
 colorama = "*"
-pyreadline = "*"
 
 [requires]
 python_version = "3.7"
