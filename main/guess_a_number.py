@@ -7,10 +7,10 @@ Reference:
 import json
 import sys
 from cmd import Cmd
-from itertools import product, permutations
 from collections import Counter
+from itertools import product, permutations
 from random import choice
-from typing import Iterable, Tuple
+from typing import Tuple, List
 
 
 class SuperHirn(Cmd):
@@ -19,11 +19,11 @@ class SuperHirn(Cmd):
     well known code-breaking game.
     """
     prompt = '(Mastermind) '
-    
+
     STOP, CONTINUE = True, False
 
     session_mode = None
-    
+
     settings = {
         'colors': 8,
         'pins': 4,
@@ -67,7 +67,7 @@ class SuperHirn(Cmd):
         ]: print(line)
 
     def do_show(self, arg: str) -> bool:
-        args = arg.split()
+        _, args = self.split_args(arg)
         if len(args) > 1:
             print(f'*** {self.lastcmd}: expected a single keyword but got {len(args)}.')
             return self.CONTINUE
@@ -97,7 +97,7 @@ class SuperHirn(Cmd):
             print(f'*** {self.session_mode.capitalize()} session running, settings locked.')
             print('*** Settings can be changed after reset.')
             return self.CONTINUE
-        args = arg.split()
+        _, args = self.split_args(arg)
         if len(args) != 2:
             print(f'*** {self.lastcmd}: expected a key and a value but got {len(args)} arguments.')
             return self.CONTINUE
@@ -126,7 +126,7 @@ class SuperHirn(Cmd):
 
     def do_reset(self, arg):
         """Reset session status and set game defaults."""
-        argc = len(arg.split())
+        argc, _ = self.split_args(arg)
         if argc:
             print(f'*** {self.lastcmd}: expected no arguments but got {argc}.')
         else:
@@ -164,14 +164,15 @@ class SuperHirn(Cmd):
     def show_all(self) -> None:
         self.show_settings()
         self.show_session()
-        
+
+    # noinspection PyUnusedLocal
     def do_board(self, arg: str) -> bool:
         """Show the current game board."""
         code_width = 1 + self.settings['pins'] * 2
         print("  ." + "-" * (14 + code_width) + ".")
         heading = 'c o d e'.center(code_width)
         print(f'  | pos |{heading}| score |')
-        print('  |' + "-" * (14 + code_width) + '|') 
+        print('  |' + "-" * (14 + code_width) + '|')
         for n in range(self.settings['limit']):
             if n < len(self.board):
                 num = self.board[n][0]
@@ -182,12 +183,11 @@ class SuperHirn(Cmd):
                 print(f'  | {num:3} |{code}| {score:5} |')
             else:
                 print('  |     |' + ' ' * code_width + '|       |')
-        print("  '" + "-" * (14 + code_width) + "'") 
+        print("  '" + "-" * (14 + code_width) + "'")
         return self.CONTINUE
-        
+
     def do_guess(self, arg: str) -> bool:
         """Enter guess as a codebreaker in a codemaker session: "guess 1 2 3 4 [5]"."""
-        args = []
         try:
             if self.session_mode != 'codemaker':
                 raise AttributeError('not in session')
@@ -226,7 +226,8 @@ class SuperHirn(Cmd):
                 self.reveal()
         return self.do_board(arg)
 
-    def score(self, a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
+    @staticmethod
+    def score(a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
         if len(a) != len(b):
             raise ValueError('*** Can not compare iterables of different length.')
         result = 'o' * sum((Counter(a) & Counter(b)).values())
@@ -240,26 +241,35 @@ class SuperHirn(Cmd):
             print(f'+ Congratulations! The secret code {self.secret_code} has been cracked.')
         else:
             print(f'+ Game over. Secret code {self.secret_code} not broken.')
-        
+
     def do_codemaker(self, arg: str) -> bool:
         """Switches mastermind to codemaker mode. Play a game against the machine, as a codebreaker."""
         if self.session_mode:
             print(f'*** Already in a {self.session_mode} session.')
             print('*** Reset first, then start a new session.')
             return self.CONTINUE
-        argc = len(arg.split())
+        argc, _ = self.split_args(arg)
+        self.calculate_possible_codes()
         if argc:
             print(f'*** {self.lastcmd}: Expected single word but got {argc} additional item{"s" if argc > 1 else ""}.')
             return self.CONTINUE
+        self.secret_code = choice(self.possible_codes)
+        self.session_mode = 'codemaker'
+        print(f'+ {self.session_mode.capitalize()} did '
+              f'choose one secret code out of {len(self.possible_codes)}.')
+        return self.CONTINUE
+
+    def calculate_possible_codes(self) -> None:
         self.possible_codes = {
             True: lambda c, p: list(product(range(c), repeat=p)),
             False: lambda c, p: list(permutations(range(c), p)),
         }[self.settings['repeat']](self.settings['colors'], self.settings['pins'])
-        self.secret_code = choice(self.possible_codes)
-        self.session_mode = 'codemaker'
-        print(f'+ {self.session_mode.capitalize()} did '
-            f'choose one secret code out of {len(self.possible_codes)}.')
-        return self.CONTINUE
+
+    @staticmethod
+    def split_args(arg: str) -> Tuple[int, List[str]]:
+        argv = arg.split()
+        argc = len(argv)
+        return argc, argv
 
 
 if __name__ == '__main__':
