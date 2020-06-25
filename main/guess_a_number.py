@@ -168,6 +168,10 @@ class SuperHirn(Cmd):
     # noinspection PyUnusedLocal
     def do_board(self, arg: str) -> bool:
         """Show the current game board."""
+        argc, _ self.split_args(arg)
+        if argc > 0:
+            print(f'{self.lastcmd}: expected no further arguments, but got {argc}.')
+            return self.CONTINUE
         code_width = 1 + self.settings['pins'] * 2
         print("  ." + "-" * (14 + code_width) + ".")
         heading = 'c o d e'.center(code_width)
