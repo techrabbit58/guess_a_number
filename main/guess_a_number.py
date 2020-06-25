@@ -168,7 +168,7 @@ class SuperHirn(Cmd):
     # noinspection PyUnusedLocal
     def do_board(self, arg: str) -> bool:
         """Show the current game board."""
-        argc, _ self.split_args(arg)
+        argc, _ = self.split_args(arg)
         if argc > 0:
             print(f'{self.lastcmd}: expected no further arguments, but got {argc}.')
             return self.CONTINUE
@@ -253,14 +253,28 @@ class SuperHirn(Cmd):
             print('*** Reset first, then start a new session.')
             return self.CONTINUE
         argc, _ = self.split_args(arg)
-        self.calculate_possible_codes()
         if argc:
             print(f'*** {self.lastcmd}: Expected single word but got {argc} additional item{"s" if argc > 1 else ""}.')
             return self.CONTINUE
+        self.calculate_possible_codes()
         self.secret_code = choice(self.possible_codes)
         self.session_mode = 'codemaker'
         print(f'+ {self.session_mode.capitalize()} did '
               f'choose one secret code out of {len(self.possible_codes)}.')
+        return self.CONTINUE
+
+    def do_codebreaker(self, arg: str) -> bool:
+        """Switches mastermind to codebreaker mode. Let the machine crack the code based on codemaker feedbacks."""
+        if self.session_mode:
+            print(f'*** Already in a {self.session_mode} session.')
+            print('*** Reset first, then start a new session.')
+            return self.CONTINUE
+        argc, _ = self.split_args(arg)
+        if argc:
+            print(f'*** {self.lastcmd}: Expected single word but got {argc} additional item{"s" if argc > 1 else ""}.')
+            return self.CONTINUE
+        self.calculate_possible_codes()
+        self.session_mode = 'codebreaker'
         return self.CONTINUE
 
     def calculate_possible_codes(self) -> None:
