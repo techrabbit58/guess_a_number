@@ -34,6 +34,7 @@ class SuperHirn(Cmd):
 
     secret_code = None
     possible_codes = None
+    remaining_codes = None
     guesses = 0
     board = []
     game_over = False
@@ -133,6 +134,7 @@ class SuperHirn(Cmd):
             self.session_mode = None
             self.settings = {k: v for k, v in self.defaults.items()}
             self.possible_codes = None
+            self.remaining_codes = None
             self.secret_code = None
             self.guesses = 0
             self.board.clear()
@@ -230,16 +232,6 @@ class SuperHirn(Cmd):
                 self.reveal()
         return self.do_board(arg)
 
-    @staticmethod
-    def score(a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
-        if len(a) != len(b):
-            raise ValueError('*** Can not compare iterables of different length.')
-        result = 'o' * sum((Counter(a) & Counter(b)).values())
-        for x, y in zip(a, b):
-            if x == y:
-                result = result[1:] + '+'
-        return result
-
     def reveal(self) -> None:
         if self.cracked:
             print(f'+ Congratulations! The secret code {self.secret_code} has been cracked.')
@@ -256,11 +248,64 @@ class SuperHirn(Cmd):
         if argc:
             print(f'*** {self.lastcmd}: Expected single word but got {argc} additional item{"s" if argc > 1 else ""}.')
             return self.CONTINUE
-        self.calculate_possible_codes()
+        self.possible_codes = self.calculate_possible_codes()
         self.secret_code = choice(self.possible_codes)
         self.session_mode = 'codemaker'
         print(f'+ {self.session_mode.capitalize()} did '
               f'choose one secret code out of {len(self.possible_codes)}.')
+        return self.CONTINUE
+
+    def help_feedback(self) -> None:
+        for line in [
+            'Enter guess as a codemaker in a codebreaker session: "feedback <guess> <answer>", where ...',
+            '- "guess" is the secret code, represented by four or five, as the current settings are',
+            '- "answer" is the codemaker\'s response to the guess, with "-" meaning "no score",',
+            '  and "o" meaning right color, and "+" meaning right color and place.',
+        ]: print(line)
+
+    def do_feedback(self, arg: str):
+        argc, argv = self.split_args(arg)
+        if argc != self.settings['pins'] + 1:
+            print(f'{self.lastcmd}: expected {self.settings["pins"] + 1} arguments, but got {argc}.')
+            return self.CONTINUE
+        try:
+            if self.session_mode != 'codebreaker':
+                raise AttributeError('not in session')
+            if self.guesses >= self.settings['limit']:
+                raise AttributeError('too many guesses')
+            if self.cracked:
+                raise AttributeError('already cracked')
+            guess = [int(d) for d in argv[:self.settings['pins']]]
+            answer = argv[self.settings['pins']]
+            if len(answer) > self.settings['pins']:
+                raise ValueError('too many feedback chars')
+            if len(answer) == 1 and answer[0] == '-':
+                answer = ''
+            if [ch not in 'o+' for ch in answer].count(True):
+                raise ValueError('unknown feedback symbol')
+        except ValueError:
+            print(f'*** Please enter exactly {self.settings["pins"]} single digits separated by blanks.')
+            print(f'*** The answer of the codemaker can be a string of "o" and "+", or a single "-".')
+            print(f'*** Color codes must be in the range 0 ... {self.settings["colors"] - 1}.')
+            print(f'*** Color codes may{" " if self.settings["repeat"] else " not "}be repeated.')
+        except AttributeError as e:
+            if str(e) == 'not in session':
+                print('+ You must be in a codebreaker session for this to work.')
+            elif str(e) == 'already cracked':
+                self.reveal()
+            else:
+                print('+ Too many guesses. Secret code not broken. Game over.')
+        else:
+            self.guesses += 1
+            self.remaining_codes = self.calculate_remaining_codes(tuple(guess), answer)
+            self.board.append((self.guesses, tuple(guess), answer))
+            self.do_board('')
+            if self.remaining_codes and answer != '+' * self.settings['pins']:
+                self.secret_code = choice(self.remaining_codes)
+                print(f'+ Next guess: {self.secret_code}.')
+            else:
+                print(f'+ Congratulations! The secret code {self.secret_code} has been cracked.')
+                self.cracked = True
         return self.CONTINUE
 
     def do_codebreaker(self, arg: str) -> bool:
@@ -273,16 +318,35 @@ class SuperHirn(Cmd):
         if argc:
             print(f'*** {self.lastcmd}: Expected single word but got {argc} additional item{"s" if argc > 1 else ""}.')
             return self.CONTINUE
-        self.calculate_possible_codes()
+        self.remaining_codes = self.calculate_possible_codes()
         self.session_mode = 'codebreaker'
-        print(f'+ Now in {self.session_mode} mode. Ready for feedbacks.')
+        print(f'+ Now in {self.session_mode} mode.')
+        self.secret_code = choice(self.remaining_codes)
+        print(f'+ First guess: {self.secret_code}. Ready for feedbacks.')
         return self.do_show('settings')
 
-    def calculate_possible_codes(self) -> None:
-        self.possible_codes = {
+    def calculate_possible_codes(self) -> List[Tuple[int, ...]]:
+        return {
             True: lambda c, p: list(product(range(c), repeat=p)),
             False: lambda c, p: list(permutations(range(c), p)),
         }[self.settings['repeat']](self.settings['colors'], self.settings['pins'])
+
+    def calculate_remaining_codes(self, guess: Tuple[int, ...], feedback: str) -> List[Tuple[int, ...]]:
+        return [
+            code
+            for code in self.remaining_codes
+            if self.score(code, guess) == feedback and code != guess
+        ]
+
+    @staticmethod
+    def score(a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
+        if len(a) != len(b):
+            raise ValueError('*** Can not compare iterables of different length.')
+        result = 'o' * sum((Counter(a) & Counter(b)).values())
+        for x, y in zip(a, b):
+            if x == y:
+                result = result[1:] + '+'
+        return result
 
     @staticmethod
     def split_args(arg: str) -> Tuple[int, List[str]]:
