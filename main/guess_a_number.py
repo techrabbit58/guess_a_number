@@ -275,7 +275,8 @@ class SuperHirn(Cmd):
             return self.CONTINUE
         self.calculate_possible_codes()
         self.session_mode = 'codebreaker'
-        return self.CONTINUE
+        print(f'+ Now in {self.session_mode} mode. Ready for feedbacks.')
+        return self.do_show('settings')
 
     def calculate_possible_codes(self) -> None:
         self.possible_codes = {
