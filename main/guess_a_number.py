@@ -47,18 +47,14 @@ class SuperHirn(Cmd):
         return line.lower()
 
     # noinspection PyUnusedLocal
-    def do_EOF(self, arg: str) -> bool:
+    def do_eof(self, arg: str) -> bool:
         """Press ^D (^Z+<ENTER> on Windows) to quit the mastermind prompt."""
         print('Bye!')
         return self.STOP
 
-    def do_eof(self, arg: str) -> bool:
-        """Same as quit."""
-        return self.do_EOF(arg)
-
     def do_quit(self, arg: str) -> bool:
         """Quit the mastemind prompt."""
-        return self.do_EOF(arg)
+        return self.do_eof(arg)
 
     def help_show(self) -> None:
         for line in [
@@ -273,6 +269,10 @@ class SuperHirn(Cmd):
             '  and "o" meaning right color, and "+" meaning right color and place.',
         ]: print(line)
 
+    # noinspection PyUnusedLocal
+    def do_cracked(self, arg: str) -> bool:
+        return self.do_feedback('+' * self.settings['pins'])
+
     def do_feedback(self, arg: str):
         if self.game_over:
             print('*** Game already over. Will not accept another feedback.')
@@ -372,11 +372,11 @@ class SuperHirn(Cmd):
 
 if __name__ == '__main__':
     app = SuperHirn()
-    try:
-        app.cmdloop()
-    except KeyboardInterrupt:
-        print('^C')
-        app.onecmd('quit')
-    sys.exit(0)
+    while True:
+        try:
+            app.cmdloop()
+            sys.exit(0)
+        except KeyboardInterrupt:
+            print('^C')
 
 # last line of code
