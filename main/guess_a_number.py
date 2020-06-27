@@ -151,6 +151,13 @@ class SuperHirn(Cmd):
                 print(f'+ Remaining guesses: {self.settings["limit"] - self.guesses}')
                 if self.game_over:
                     self.reveal()
+                return
+            if self.session_mode == 'codebreaker':
+                print(f'+ Guesses so far: {self.guesses}')
+                print(f'+ Remaining guesses: {self.settings["limit"] - self.guesses}')
+                if self.game_over:
+                    self.reveal()
+                return
         else:
             print('+ Session not running.')
 
@@ -194,6 +201,9 @@ class SuperHirn(Cmd):
 
     def do_guess(self, arg: str) -> bool:
         """Enter guess as a codebreaker in a codemaker session: "guess 1 2 3 4 [5]"."""
+        if self.game_over:
+            print('*** The game is over. Will not accept another guess.')
+            return self.CONTINUE
         try:
             if self.session_mode != 'codemaker':
                 raise AttributeError('not in session')
@@ -209,9 +219,9 @@ class SuperHirn(Cmd):
             if not self.settings['repeat'] and len(args) != len(set(args)):
                 raise ValueError('repeats not allowed')
         except ValueError:
-            print(f'*** Please enter exactly {self.settings["pins"]} single digits separated by blanks.')
             print(f'*** Color codes must be in the range 0 ... {self.settings["colors"] - 1}.')
             print(f'*** Color codes may{" " if self.settings["repeat"] else " not "}be repeated.')
+            print(f'*** Please enter exactly {self.settings["pins"]} single digits separated by blanks.')
         except AttributeError as e:
             if str(e) == 'not in session':
                 print('+ You must be in a codemaker session for this to work.')
@@ -264,9 +274,12 @@ class SuperHirn(Cmd):
         ]: print(line)
 
     def do_feedback(self, arg: str):
+        if self.game_over:
+            print('*** Game already over. Will not accept another feedback.')
+            return self.CONTINUE
         argc, argv = self.split_args(arg)
-        if argc != self.settings['pins'] + 1:
-            print(f'{self.lastcmd}: expected {self.settings["pins"] + 1} arguments, but got {argc}.')
+        if argc != 1:
+            print(f'{self.lastcmd}: expected one single argument, but got {argc}.')
             return self.CONTINUE
         try:
             if self.session_mode != 'codebreaker':
@@ -275,19 +288,17 @@ class SuperHirn(Cmd):
                 raise AttributeError('too many guesses')
             if self.cracked:
                 raise AttributeError('already cracked')
-            guess = [int(d) for d in argv[:self.settings['pins']]]
-            answer = argv[self.settings['pins']]
+            answer = argv[0]
             if len(answer) > self.settings['pins']:
                 raise ValueError('too many feedback chars')
             if len(answer) == 1 and answer[0] == '-':
                 answer = ''
             if [ch not in 'o+' for ch in answer].count(True):
                 raise ValueError('unknown feedback symbol')
+            answer_pins = Counter(answer)
+            answer = 'o' * answer_pins['o'] + '+' * answer_pins['+']
         except ValueError:
-            print(f'*** Please enter exactly {self.settings["pins"]} single digits separated by blanks.')
             print(f'*** The answer of the codemaker can be a string of "o" and "+", or a single "-".')
-            print(f'*** Color codes must be in the range 0 ... {self.settings["colors"] - 1}.')
-            print(f'*** Color codes may{" " if self.settings["repeat"] else " not "}be repeated.')
         except AttributeError as e:
             if str(e) == 'not in session':
                 print('+ You must be in a codebreaker session for this to work.')
@@ -297,15 +308,19 @@ class SuperHirn(Cmd):
                 print('+ Too many guesses. Secret code not broken. Game over.')
         else:
             self.guesses += 1
-            self.remaining_codes = self.calculate_remaining_codes(tuple(guess), answer)
-            self.board.append((self.guesses, tuple(guess), answer))
+            self.remaining_codes = self.calculate_remaining_codes(self.secret_code, answer)
+            self.board.append((self.guesses, self.secret_code, answer))
             self.do_board('')
-            if self.remaining_codes and answer != '+' * self.settings['pins']:
+            if answer == '+' * self.settings['pins']:
+                self.cracked = True
+                self.game_over = True
+                self.reveal()
+            elif self.guesses >= self.settings['limit'] and answer != '+' * self.settings['pins']:
+                self.game_over = True
+                print('+ Too many guesses. Secret code not cracked. Game over.')
+            else:
                 self.secret_code = choice(self.remaining_codes)
                 print(f'+ Next guess: {self.secret_code}.')
-            else:
-                print(f'+ Congratulations! The secret code {self.secret_code} has been cracked.')
-                self.cracked = True
         return self.CONTINUE
 
     def do_codebreaker(self, arg: str) -> bool:
