@@ -13,6 +13,14 @@ from random import choice
 from typing import Tuple, List
 
 
+class WrongNumberOfArgs(ValueError):
+    """Raised if a command got a wrong number of arguments."""
+
+
+class WrongArgumentType(ValueError):
+    """Raised if a command got a wrong argument type."""
+
+
 class SuperHirn(Cmd):
     intro = """
     Welcome to the interactive collection of helpers for the
@@ -115,8 +123,8 @@ class SuperHirn(Cmd):
                     'repeat': lambda v: json.loads(v),
                 }[key](value)
             else:
-                raise ValueError()
-        except ValueError:
+                raise WrongArgumentType()
+        except WrongArgumentType:
             print(f'*** {self.lastcmd}: value not recognized.')
         finally:
             return self.CONTINUE
@@ -202,23 +210,23 @@ class SuperHirn(Cmd):
             return self.CONTINUE
         try:
             if self.session_mode != 'codemaker':
-                raise AttributeError('not in session')
+                raise WrongNumberOfArgs('not in session')
             if self.guesses >= self.settings['limit']:
-                raise AttributeError('too many guesses')
+                raise WrongNumberOfArgs('too many guesses')
             if self.cracked:
-                raise AttributeError('already cracked')
+                raise WrongNumberOfArgs('already cracked')
             args = [int(a) for a in arg.split()]
             if len(args) != self.settings['pins']:
-                raise ValueError('arg count')
+                raise WrongArgumentType('arg count')
             if any([a < 0 or a >= self.settings['colors'] for a in args]):
-                raise ValueError('unknown color')
+                raise WrongArgumentType('unknown color')
             if not self.settings['repeat'] and len(args) != len(set(args)):
-                raise ValueError('repeats not allowed')
-        except ValueError:
+                raise WrongArgumentType('repeats not allowed')
+        except WrongArgumentType:
             print(f'*** Color codes must be in the range 0 ... {self.settings["colors"] - 1}.')
             print(f'*** Color codes may{" " if self.settings["repeat"] else " not "}be repeated.')
             print(f'*** Please enter exactly {self.settings["pins"]} single digits separated by blanks.')
-        except AttributeError as e:
+        except WrongNumberOfArgs as e:
             if str(e) == 'not in session':
                 print('+ You must be in a codemaker session for this to work.')
             elif str(e) == 'already cracked':
@@ -283,23 +291,23 @@ class SuperHirn(Cmd):
             return self.CONTINUE
         try:
             if self.session_mode != 'codebreaker':
-                raise AttributeError('not in session')
+                raise WrongNumberOfArgs('not in session')
             if self.guesses >= self.settings['limit']:
-                raise AttributeError('too many guesses')
+                raise WrongNumberOfArgs('too many guesses')
             if self.cracked:
-                raise AttributeError('already cracked')
+                raise WrongNumberOfArgs('already cracked')
             answer = argv[0]
             if len(answer) > self.settings['pins']:
-                raise ValueError('too many feedback chars')
+                raise WrongArgumentType('too many feedback chars')
             if len(answer) == 1 and answer[0] == '-':
                 answer = ''
             if [ch not in 'o+' for ch in answer].count(True):
-                raise ValueError('unknown feedback symbol')
+                raise WrongArgumentType('unknown feedback symbol')
             answer_pins = Counter(answer)
             answer = 'o' * answer_pins['o'] + '+' * answer_pins['+']
-        except ValueError:
+        except WrongArgumentType:
             print(f'*** The answer of the codemaker can be a string of "o" and "+", or a single "-".')
-        except AttributeError as e:
+        except WrongNumberOfArgs as e:
             if str(e) == 'not in session':
                 print('+ You must be in a codebreaker session for this to work.')
             elif str(e) == 'already cracked':
@@ -356,7 +364,7 @@ class SuperHirn(Cmd):
     @staticmethod
     def score(a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
         if len(a) != len(b):
-            raise ValueError('*** Can not compare iterables of different length.')
+            raise WrongArgumentType('*** Can not compare iterables of different length.')
         result = 'o' * sum((Counter(a) & Counter(b)).values())
         for x, y in zip(a, b):
             if x == y:
