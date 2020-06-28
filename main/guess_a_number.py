@@ -231,6 +231,8 @@ class SuperHirn(Cmd):
                 print('+ You must be in a codemaker session for this to work.')
             elif str(e) == 'already cracked':
                 self.reveal()
+            elif str(e) == 'arg count':
+                print(f'+ Wrong number of arguments. Expected {self.settings["pins"]}, got {len(args)}.')
             else:
                 print(f'+ Too many guesses. Secret code {self.secret_code} not broken. Game over.')
         else:
@@ -244,7 +246,7 @@ class SuperHirn(Cmd):
                 self.game_over = True
                 self.cracked = True
                 self.reveal()
-        return self.do_board(arg)
+            return self.do_board('')
 
     def reveal(self) -> None:
         if self.cracked:
