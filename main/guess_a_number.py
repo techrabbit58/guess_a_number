@@ -4,21 +4,12 @@ An interactive set of helpers for a more successful operation of the board game 
 Reference:
 - https://en.wikipedia.org/wiki/Mastermind_(board_game)
 """
-import json
 import sys
 from cmd import Cmd
 from collections import Counter
 from itertools import product, permutations
 from random import choice
-from typing import Tuple, List
-
-
-class WrongNumberOfArgs(ValueError):
-    """Raised if a command got a wrong number of arguments."""
-
-
-class WrongArgumentType(ValueError):
-    """Raised if a command got a wrong argument type."""
+from typing import Tuple, List, Union
 
 
 class SuperHirn(Cmd):
@@ -54,6 +45,41 @@ class SuperHirn(Cmd):
     def precmd(self, line: str) -> str:
         return line.lower()
 
+    def got_arguments(self, arg: str) -> bool:
+        return bool(len(arg))
+
+    def got_all_valid_digits(self, arg: str) -> Union[None, Tuple[int, ...]]:
+        argc, argv = self.split_args(arg)
+        if argc != self.settings['pins']:
+            return None
+        for d in argv:
+            if d not in list('0123456789')[:self.settings['colors']]:
+                return None
+        if not self.settings['repeat'] and len(argv) == len(set(argv)):
+            return None
+        return tuple(int(d) for d in argv)
+
+    def got_valid_feedback_string(self, arg: str) -> Union[None, str]:
+        if arg == '':
+            return ''
+        for ch in arg:
+            if ch not in 'o+':
+                return None
+        answer_pins = Counter(arg)
+        arg = 'o' * answer_pins['o'] + '+' * answer_pins['+']
+        if len(arg) > self.settings['pins']:
+            return None
+        else:
+            return arg
+
+    def got_one_or_less_arguments(self, arg: str) -> Union[None, List[str]]:
+        argc, argv = self.split_args(arg)
+        return None if argc > 1 else argv
+
+    def got_exactly_two_arguments(self, arg: str) -> Union[None, List[str]]:
+        argc, argv = self.split_args(arg)
+        return None if argc != 2 else argv
+
     # noinspection PyUnusedLocal
     def do_eof(self, arg: str) -> bool:
         """Press ^D (^Z+<ENTER> on Windows) to quit the mastermind prompt."""
@@ -72,21 +98,21 @@ class SuperHirn(Cmd):
         ]: print(line)
 
     def do_show(self, arg: str) -> bool:
-        _, args = self.split_args(arg)
-        if len(args) > 1:
-            print(f'*** {self.lastcmd}: expected a single keyword but got {len(args)}.')
-            return self.CONTINUE
-        item = (args + ['all'])[0]
+        argv = self.got_one_or_less_arguments(arg)
+        if arg is None:
+            return self.wrong_number_of_arguments_help_hint()
+        arg = (argv + ['all'])[0]
         try:
             {
                 'session': self.show_session,
                 'settings': self.show_settings,
                 'all': self.show_all,
                 'help': lambda: self.onecmd('help')
-            }[item]()
+            }[arg]()
         except KeyError:
-            print(f'*** {self.lastcmd}: can not show unknown property.')
-        return self.CONTINUE
+            return self.settings_help_hint()
+        finally:
+            return self.CONTINUE
 
     def help_set(self) -> None:
         for line in [
@@ -98,70 +124,50 @@ class SuperHirn(Cmd):
         ]: print(line)
 
     def do_set(self, arg: str) -> bool:
-        if self.session_mode:
-            print(f'*** {self.session_mode.capitalize()} session running, settings locked.')
-            print('*** Settings can be changed after reset.')
-            return self.CONTINUE
-        _, args = self.split_args(arg)
-        if len(args) != 2:
-            print(f'*** {self.lastcmd}: expected a key and a value but got {len(args)} arguments.')
-            return self.CONTINUE
-        key, value = args
-        if key not in self.settings:
-            print(f'*** {self.lastcmd}: key not recognized.')
-        try:
-            if {
-                'colors': lambda v: 4 <= int(v) <= 9,
-                'pins': lambda v: int(v) in (4, 5),
-                'limit': lambda v: int(v) in (10, 12),
-                'repeat': lambda v: isinstance(json.loads(v), bool),
-            }[key](value):
-                self.settings[key] = {
-                    'colors': lambda v: int(v),
-                    'pins': lambda v: int(v),
-                    'limit': lambda v: int(v),
-                    'repeat': lambda v: json.loads(v),
-                }[key](value)
-            else:
-                raise WrongArgumentType()
-        except WrongArgumentType:
-            print(f'*** {self.lastcmd}: value not recognized.')
-        finally:
-            return self.CONTINUE
+        if self.in_session():
+            return self.settings_locked_notification()
+        argv = self.got_exactly_two_arguments(arg)
+        if argv is None:
+            return self.wrong_number_of_arguments_help_hint()
+        key, value = self.argv_is_key_value_pair(argv)
+        if key is None:
+            return self.wrong_argument_type_hint()
+        self.settings[key] = value
+        return self.CONTINUE
 
     def do_reset(self, arg):
         """Reset session status and set game defaults."""
-        argc, _ = self.split_args(arg)
-        if argc:
-            print(f'*** {self.lastcmd}: expected no arguments but got {argc}.')
-        else:
-            self.session_mode = None
-            self.settings = {k: v for k, v in self.defaults.items()}
-            self.possible_codes = None
-            self.remaining_codes = None
-            self.secret_code = None
-            self.guesses = 0
-            self.board.clear()
-            self.game_over = False
-            self.cracked = False
-            print('+ Session ended. Mastermind set to defaults.')
+        if self.got_arguments(arg):
+            return self.arguments_not_expected_help_hint()
+        self.session_mode = None
+        self.settings = {k: v for k, v in self.defaults.items()}
+        self.possible_codes = None
+        self.remaining_codes = None
+        self.secret_code = None
+        self.guesses = 0
+        self.board.clear()
+        self.game_over = False
+        self.cracked = False
+        print('+ Session ended. Mastermind set to defaults.')
         return self.CONTINUE
 
     def show_session(self) -> None:
-        if self.session_mode:
+        if self.in_session():
             print(f'+ Mastermind is running in {self.session_mode} mode.')
             if self.session_mode == 'codemaker':
                 print(f'+ Guesses so far: {self.guesses}')
                 print(f'+ Remaining guesses: {self.settings["limit"] - self.guesses}')
                 if self.game_over:
                     self.reveal()
-                return
+                return None
             if self.session_mode == 'codebreaker':
                 print(f'+ Guesses so far: {self.guesses}')
                 print(f'+ Remaining guesses: {self.settings["limit"] - self.guesses}')
                 if self.game_over:
                     self.reveal()
-                return
+                else:
+                    print(f'+ Last guess awaiting feedback: {self.secret_code}.')
+                return None
         else:
             print('+ Session not running.')
 
@@ -181,10 +187,12 @@ class SuperHirn(Cmd):
     # noinspection PyUnusedLocal
     def do_board(self, arg: str) -> bool:
         """Show the current game board."""
-        argc, _ = self.split_args(arg)
-        if argc > 0:
-            print(f'{self.lastcmd}: expected no further arguments, but got {argc}.')
-            return self.CONTINUE
+        if self.got_arguments(arg):
+            return self.arguments_not_expected_help_hint()
+        else:
+            return self.show_board()
+
+    def show_board(self) -> bool:
         code_width = 1 + self.settings['pins'] * 2
         print("  ." + "-" * (14 + code_width) + ".")
         heading = 'c o d e'.center(code_width)
@@ -205,48 +213,29 @@ class SuperHirn(Cmd):
 
     def do_guess(self, arg: str) -> bool:
         """Enter guess as a codebreaker in a codemaker session: "guess 1 2 3 4 [5]"."""
-        if self.game_over:
-            print('*** The game is over. Will not accept another guess.')
-            return self.CONTINUE
-        try:
-            if self.session_mode != 'codemaker':
-                raise WrongNumberOfArgs('not in session')
-            if self.guesses >= self.settings['limit']:
-                raise WrongNumberOfArgs('too many guesses')
-            if self.cracked:
-                raise WrongNumberOfArgs('already cracked')
-            args = [int(a) for a in arg.split()]
-            if len(args) != self.settings['pins']:
-                raise WrongArgumentType('arg count')
-            if any([a < 0 or a >= self.settings['colors'] for a in args]):
-                raise WrongArgumentType('unknown color')
-            if not self.settings['repeat'] and len(args) != len(set(args)):
-                raise WrongArgumentType('repeats not allowed')
-        except WrongArgumentType:
-            print(f'*** Color codes must be in the range 0 ... {self.settings["colors"] - 1}.')
-            print(f'*** Color codes may{" " if self.settings["repeat"] else " not "}be repeated.')
-            print(f'*** Please enter exactly {self.settings["pins"]} single digits separated by blanks.')
-        except WrongNumberOfArgs as e:
-            if str(e) == 'not in session':
-                print('+ You must be in a codemaker session for this to work.')
-            elif str(e) == 'already cracked':
-                self.reveal()
-            elif str(e) == 'arg count':
-                print(f'+ Wrong number of arguments. Expected {self.settings["pins"]}, got {len(args)}.')
-            else:
-                print(f'+ Too many guesses. Secret code {self.secret_code} not broken. Game over.')
-        else:
-            self.guesses += 1
-            score = self.score(tuple(args), self.secret_code)
-            self.board.append((self.guesses, tuple(args), score))
-            if self.guesses >= self.settings['limit'] and score != '+' * self.settings['pins']:
-                self.game_over = True
-                self.reveal()
-            elif score == '+' * self.settings['pins']:
-                self.game_over = True
-                self.cracked = True
-                self.reveal()
-            return self.do_board('')
+        if not self.is_in_session('codemaker'):
+            return self.wrong_session_mode_hint('codemaker')
+        if self.is_game_over():
+            return self.game_over_warning('guess')
+        if self.is_guesses_limit_reached():
+            return self.guesses_limit_reached()
+        if self.is_already_cracked():
+            return self.already_cracked_hint()
+        argv = self.got_all_valid_digits(arg)
+        if argv is None:
+            return self.wrong_arguments_help_hint()
+        self.guesses += 1
+        score = self.score(argv, self.secret_code)
+        self.board.append((self.guesses, argv, score))
+        self.show_board()
+        if self.guesses >= self.settings['limit'] and score != '+' * self.settings['pins']:
+            self.game_over = True
+            self.reveal()
+        elif score == '+' * self.settings['pins']:
+            self.game_over = True
+            self.cracked = True
+            self.reveal()
+        return self.CONTINUE
 
     def reveal(self) -> None:
         if self.cracked:
@@ -256,14 +245,10 @@ class SuperHirn(Cmd):
 
     def do_codemaker(self, arg: str) -> bool:
         """Switches mastermind to codemaker mode. Play a game against the machine, as a codebreaker."""
-        if self.session_mode:
-            print(f'*** Already in a {self.session_mode} session.')
-            print('*** Reset first, then start a new session.')
-            return self.CONTINUE
-        argc, _ = self.split_args(arg)
-        if argc:
-            print(f'*** {self.lastcmd}: Expected single word but got {argc} additional item{"s" if argc > 1 else ""}.')
-            return self.CONTINUE
+        if self.in_session():
+            return self.already_in_session_hint()
+        if self.got_arguments(arg):
+            return self.arguments_not_expected_help_hint()
         self.possible_codes = self.calculate_possible_codes()
         self.secret_code = choice(self.possible_codes)
         self.session_mode = 'codemaker'
@@ -280,69 +265,44 @@ class SuperHirn(Cmd):
         ]: print(line)
 
     # noinspection PyUnusedLocal
-    def do_cracked(self, arg: str) -> bool:
+    def do_done(self, arg: str) -> bool:
+        """A shortcut for "feedback ++++[+]"."""
         return self.do_feedback('+' * self.settings['pins'])
 
     def do_feedback(self, arg: str):
-        if self.game_over:
-            print('*** Game already over. Will not accept another feedback.')
-            return self.CONTINUE
-        argc, argv = self.split_args(arg)
-        if argc != 1:
-            print(f'{self.lastcmd}: expected one single argument, but got {argc}.')
-            return self.CONTINUE
-        try:
-            if self.session_mode != 'codebreaker':
-                raise WrongNumberOfArgs('not in session')
-            if self.guesses >= self.settings['limit']:
-                raise WrongNumberOfArgs('too many guesses')
-            if self.cracked:
-                raise WrongNumberOfArgs('already cracked')
-            answer = argv[0]
-            if len(answer) > self.settings['pins']:
-                raise WrongArgumentType('too many feedback chars')
-            if len(answer) == 1 and answer[0] == '-':
-                answer = ''
-            if [ch not in 'o+' for ch in answer].count(True):
-                raise WrongArgumentType('unknown feedback symbol')
-            answer_pins = Counter(answer)
-            answer = 'o' * answer_pins['o'] + '+' * answer_pins['+']
-        except WrongArgumentType:
-            print(f'*** The answer of the codemaker can be a string of "o" and "+", or a single "-".')
-        except WrongNumberOfArgs as e:
-            if str(e) == 'not in session':
-                print('+ You must be in a codebreaker session for this to work.')
-            elif str(e) == 'already cracked':
-                self.reveal()
-            else:
-                print('+ Too many guesses. Secret code not broken. Game over.')
+        if not self.is_in_session('codebreaker'):
+            return self.wrong_session_mode_hint('codebreaker')
+        if self.is_game_over():
+            return self.game_over_warning('feedback')
+        if self.is_guesses_limit_reached():
+            return self.guesses_limit_reached()
+        if self.is_already_cracked():
+            return self.already_cracked_hint()
+        answer = self.got_valid_feedback_string(arg)
+        if answer is None:
+            return self.wrong_arguments_help_hint()
+        self.guesses += 1
+        self.remaining_codes = self.calculate_remaining_codes(self.secret_code, answer)
+        self.board.append((self.guesses, self.secret_code, answer))
+        self.show_board()
+        if answer == '+' * self.settings['pins']:
+            self.cracked = True
+            self.game_over = True
+            self.reveal()
+        elif self.guesses >= self.settings['limit'] and answer != '+' * self.settings['pins']:
+            self.game_over = True
+            print('+ Too many guesses. Secret code not cracked. Game over.')
         else:
-            self.guesses += 1
-            self.remaining_codes = self.calculate_remaining_codes(self.secret_code, answer)
-            self.board.append((self.guesses, self.secret_code, answer))
-            self.do_board('')
-            if answer == '+' * self.settings['pins']:
-                self.cracked = True
-                self.game_over = True
-                self.reveal()
-            elif self.guesses >= self.settings['limit'] and answer != '+' * self.settings['pins']:
-                self.game_over = True
-                print('+ Too many guesses. Secret code not cracked. Game over.')
-            else:
-                self.secret_code = choice(self.remaining_codes)
-                print(f'+ Next guess: {self.secret_code}.')
+            self.secret_code = choice(self.remaining_codes)
+            print(f'+ Next guess: {self.secret_code}.')
         return self.CONTINUE
 
     def do_codebreaker(self, arg: str) -> bool:
         """Switches mastermind to codebreaker mode. Let the machine crack the code based on codemaker feedbacks."""
-        if self.session_mode:
-            print(f'*** Already in a {self.session_mode} session.')
-            print('*** Reset first, then start a new session.')
-            return self.CONTINUE
-        argc, _ = self.split_args(arg)
-        if argc:
-            print(f'*** {self.lastcmd}: Expected single word but got {argc} additional item{"s" if argc > 1 else ""}.')
-            return self.CONTINUE
+        if self.in_session():
+            return self.already_in_session_hint()
+        if self.got_arguments(arg):
+            return self.arguments_not_expected_help_hint()
         self.remaining_codes = self.calculate_possible_codes()
         self.session_mode = 'codebreaker'
         print(f'+ Now in {self.session_mode} mode.')
@@ -363,10 +323,92 @@ class SuperHirn(Cmd):
             if self.score(code, guess) == feedback and code != guess
         ]
 
+    def settings_help_hint(self) -> bool:
+        command = self.lastcmd.split()[0]
+        print(f'*** {command}: unknown setting. Try "help {command}".')
+        return self.CONTINUE
+
+    def wrong_number_of_arguments_help_hint(self) -> bool:
+        command = self.lastcmd.split()[0]
+        print(f'*** {command}: wrong number of arguments. Try "help {command}".')
+        return self.CONTINUE
+
+    def wrong_arguments_help_hint(self) -> bool:
+        command = self.lastcmd.split()[0]
+        print(f'*** {command}: Something wrong with the arguments?. Try "help {command}".')
+        return self.CONTINUE
+
+    def arguments_not_expected_help_hint(self) -> bool:
+        command = self.lastcmd.split()[0]
+        print(f'*** {command}: did not expect an argument. Try "help {command}".')
+        return self.CONTINUE
+
+    def in_session(self) -> bool:
+        return self.session_mode is not None
+
+    def settings_locked_notification(self) -> bool:
+        print(f'*** {self.session_mode.capitalize()} session running, settings locked.')
+        return self.CONTINUE
+
+    def argv_is_key_value_pair(self, argv: List[str]) -> Tuple[Union[None, str], Union[None, int, bool]]:
+        if not (len(argv) == 2 and argv[0] in self.settings):
+            return None, None
+        k, v = argv
+        if k == 'colors' and v in list('0123456789')[:self.settings['colors']]:
+            return k, int(v)
+        elif k == 'pins' and v in list('45'):
+            return k, int(v)
+        elif k == 'limit' and v in ('10', '12'):
+            return k, int(v)
+        elif k == 'repeat' and v in ('true', 'false'):
+            return k, v == 'true'
+        else:
+            return None, None
+
+    def wrong_argument_type_hint(self) -> bool:
+        command = self.lastcmd.split()[0]
+        print(f'*** {command}: unknown arguments. Try "help {command}".')
+        return self.CONTINUE
+
+    def is_game_over(self) -> bool:
+        return self.game_over is True
+
+    def is_in_session(self, mode: str) -> bool:
+        return self.session_mode == mode
+
+    def wrong_session_mode_hint(self, mode: str) -> bool:
+        if self.session_mode is None:
+            print(f'*** Not in session. Start a session to use this command.')
+        else:
+            print(f'*** {self.session_mode.capitalize()} session running, but this requires a {mode} session.')
+        return self.CONTINUE
+
+    def game_over_warning(self, func: str) -> bool:
+        print(f'*** The game is over. Will not accept another {func}.')
+        return self.CONTINUE
+
+    def is_guesses_limit_reached(self):
+        return self.guesses >= self.settings['limit']
+
+    def guesses_limit_reached(self) -> bool:
+        print(f'+ Too many guesses. Secret code {self.secret_code} not broken. Game over.')
+        return self.CONTINUE
+
+    def is_already_cracked(self) -> bool:
+        return self.cracked is True
+
+    def already_cracked_hint(self) -> bool:
+        self.reveal()
+        return self.CONTINUE
+
+    def already_in_session_hint(self):
+        print(f'*** Already in a {self.session_mode} session. Starting another session requires reset.')
+        return self.CONTINUE
+
     @staticmethod
     def score(a: Tuple[int, ...], b: Tuple[int, ...]) -> str:
         if len(a) != len(b):
-            raise WrongArgumentType('*** Can not compare iterables of different length.')
+            raise ValueError('*** Can not compare iterables of different length.')
         result = 'o' * sum((Counter(a) & Counter(b)).values())
         for x, y in zip(a, b):
             if x == y:
