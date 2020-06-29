@@ -26,7 +26,7 @@ class SuperHirn(Cmd):
         'repeat': True,
     }
     defaults = {k: v for k, v in settings.items()}
-    
+
     colormap = {
         0: 'white',
         1: 'red',
@@ -46,7 +46,7 @@ class SuperHirn(Cmd):
     board = []
     game_over = False
     cracked = False
-    
+
     def __init__(self, *args, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.possible_codes = self.calculate_possible_codes()
@@ -104,7 +104,7 @@ class SuperHirn(Cmd):
     def do_quit(self, arg: str) -> bool:
         """Quit the mastemind prompt."""
         return self.exit_cmdloop()
-        
+
     def exit_cmdloop(self) -> bool:
         print('Bye!')
         return self.STOP
@@ -143,7 +143,7 @@ class SuperHirn(Cmd):
                 if k < self.settings['colors']:
                     print(f'{k:5}: {v}')
             return self.CONTINUE
-            
+
     def do_code(self, arg: str) -> bool:
         """Show the current code to colors mapping: "code"."""
         if self.got_arguments(arg):
