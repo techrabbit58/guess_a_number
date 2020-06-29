@@ -13,10 +13,6 @@ from typing import Tuple, List, Union
 
 
 class SuperHirn(Cmd):
-    intro = """
-    Welcome to the interactive collection of helpers for the
-    well known code-breaking game.
-    """
     prompt = '(Mastermind) '
 
     STOP, CONTINUE = True, False
@@ -30,6 +26,19 @@ class SuperHirn(Cmd):
         'repeat': True,
     }
     defaults = {k: v for k, v in settings.items()}
+    
+    colormap = {
+        0: 'white',
+        1: 'red',
+        2: 'green',
+        3: 'cyan',
+        4: 'purple',
+        5: 'yellow',
+        6: 'brown',
+        7: 'orange',
+        8: '(blank)',
+    }
+    reverse_colormap = {v, k for k, v in colormap}
 
     secret_code = None
     possible_codes = None
@@ -38,6 +47,10 @@ class SuperHirn(Cmd):
     board = []
     game_over = False
     cracked = False
+    
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.possible_codes = self.calculate_possible_codes()
 
     def emptyline(self) -> bool:
         return False
@@ -61,6 +74,8 @@ class SuperHirn(Cmd):
 
     def got_valid_feedback_string(self, arg: str) -> Union[None, str]:
         if arg == '':
+            return None
+        if arg == '-':
             return ''
         for ch in arg:
             if ch not in 'o+':
@@ -83,12 +98,17 @@ class SuperHirn(Cmd):
     # noinspection PyUnusedLocal
     def do_eof(self, arg: str) -> bool:
         """Press ^D (^Z+<ENTER> on Windows) to quit the mastermind prompt."""
-        print('Bye!')
-        return self.STOP
+        print()
+        return self.exit_cmdloop()
 
+    # noinspection PyUnusedLocal
     def do_quit(self, arg: str) -> bool:
         """Quit the mastemind prompt."""
-        return self.do_eof(arg)
+        return self.exit_cmdloop()
+        
+    def exit_cmdloop(self) -> bool:
+        print('Bye!')
+        return self.STOP
 
     def help_show(self) -> None:
         for line in [
@@ -107,7 +127,7 @@ class SuperHirn(Cmd):
                 'session': self.show_session,
                 'settings': self.show_settings,
                 'all': self.show_all,
-                'help': lambda: self.onecmd('help')
+                'help': lambda: self.onecmd('help'),
             }[arg]()
         except KeyError:
             return self.settings_help_hint()
@@ -130,9 +150,11 @@ class SuperHirn(Cmd):
         if argv is None:
             return self.wrong_number_of_arguments_help_hint()
         key, value = self.argv_is_key_value_pair(argv)
+        print(key, value)
         if key is None:
             return self.wrong_argument_type_hint()
         self.settings[key] = value
+        self.possible_codes = self.calculate_possible_codes()
         return self.CONTINUE
 
     def do_reset(self, arg):
@@ -141,7 +163,7 @@ class SuperHirn(Cmd):
             return self.arguments_not_expected_help_hint()
         self.session_mode = None
         self.settings = {k: v for k, v in self.defaults.items()}
-        self.possible_codes = None
+        self.possible_codes = self.calculate_possible_codes()
         self.remaining_codes = None
         self.secret_code = None
         self.guesses = 0
@@ -179,6 +201,7 @@ class SuperHirn(Cmd):
                 print(f'+ Maximum allowed guesses for codebreaking are {value}.')
             elif setting == 'repeat':
                 print(f'+ Code colors may{" " if value else " not "}be repeated.')
+        print(f'+ With this settings there are {len(self.possible_codes)} codes possible to make.')
 
     def show_all(self) -> None:
         self.show_settings()
@@ -249,7 +272,6 @@ class SuperHirn(Cmd):
             return self.already_in_session_hint()
         if self.got_arguments(arg):
             return self.arguments_not_expected_help_hint()
-        self.possible_codes = self.calculate_possible_codes()
         self.secret_code = choice(self.possible_codes)
         self.session_mode = 'codemaker'
         print(f'+ {self.session_mode.capitalize()} did '
@@ -303,7 +325,7 @@ class SuperHirn(Cmd):
             return self.already_in_session_hint()
         if self.got_arguments(arg):
             return self.arguments_not_expected_help_hint()
-        self.remaining_codes = self.calculate_possible_codes()
+        self.remaining_codes = self.possible_codes[:]
         self.session_mode = 'codebreaker'
         print(f'+ Now in {self.session_mode} mode.')
         self.secret_code = choice(self.remaining_codes)
@@ -354,7 +376,7 @@ class SuperHirn(Cmd):
         if not (len(argv) == 2 and argv[0] in self.settings):
             return None, None
         k, v = argv
-        if k == 'colors' and v in list('0123456789')[:self.settings['colors']]:
+        if k == 'colors' and v in list('6789'):
             return k, int(v)
         elif k == 'pins' and v in list('45'):
             return k, int(v)
@@ -423,12 +445,17 @@ class SuperHirn(Cmd):
 
 
 if __name__ == '__main__':
+    intro = """
+    Welcome to the interactive collection of helpers for the
+    well known code-breaking game.
+    """
     app = SuperHirn()
     while True:
         try:
-            app.cmdloop()
+            app.cmdloop(intro)
             sys.exit(0)
         except KeyboardInterrupt:
             print('^C')
+            intro = ''
 
 # last line of code
