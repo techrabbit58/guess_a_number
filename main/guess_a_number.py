@@ -30,12 +30,12 @@ class SuperHirn(Cmd):
     colormap = {
         0: 'white',
         1: 'red',
-        2: 'green',
-        3: 'cyan',
-        4: 'purple',
-        5: 'yellow',
-        6: 'brown',
-        7: 'orange',
+        2: 'orange',
+        3: 'yellow',
+        4: 'blue',
+        5: 'green',
+        6: 'purple',
+        7: 'pink',
         8: '(blank)',
     }
 
@@ -148,13 +148,30 @@ class SuperHirn(Cmd):
         if self.got_arguments(arg):
             return self.wrong_arguments_help_hint()
         else:
-            if self.secret_code:
+            if self.secret_code and (self.session_mode == 'codebreaker' or self.game_over):
                 print(self.secret_code, '=>', end=' ')
                 for d in self.secret_code:
                     print(self.colormap[d], end=' ')
                 print()
+            elif self.secret_code and self.session_mode == 'codemaker' and not self.game_over:
+                self.must_surrender_first()
             else:
                 print('+ The code is currently not set. Start session!')
+            return self.CONTINUE
+
+    def do_surrender(self, arg: str) -> bool:
+        """Codebreaker may surrender in a codemaker session: "surrender"."""
+        if self.got_arguments(arg):
+            return self.wrong_arguments_help_hint()
+        elif self.is_in_session('codebreaker') or not self.in_session():
+            return self.wrong_session_mode_hint('codebreaker')
+        else:
+            answer = input('Are you sure? (Enter YES to confirm.) ')
+            if answer == 'YES':
+                self.game_over = True
+                print('+ Surrendered.')
+            else:
+                print('+ Game play continued.')
             return self.CONTINUE
 
     def help_set(self) -> None:
@@ -173,7 +190,6 @@ class SuperHirn(Cmd):
         if argv is None:
             return self.wrong_number_of_arguments_help_hint()
         key, value = self.argv_is_key_value_pair(argv)
-        print(key, value)
         if key is None:
             return self.wrong_argument_type_hint()
         self.settings[key] = value
@@ -446,8 +462,12 @@ class SuperHirn(Cmd):
         self.reveal()
         return self.CONTINUE
 
-    def already_in_session_hint(self):
+    def already_in_session_hint(self) -> bool:
         print(f'*** Already in a {self.session_mode} session. Starting another session requires reset.')
+        return self.CONTINUE
+
+    def must_surrender_first(self) -> bool:
+        print(f'*** Already in a {self.session_mode} session. To reveal the code, please use "surrender" first.')
         return self.CONTINUE
 
     @staticmethod
