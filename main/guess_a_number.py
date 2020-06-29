@@ -138,9 +138,10 @@ class SuperHirn(Cmd):
         if self.got_arguments(arg):
             return self.wrong_arguments_help_hint()
         else:
+            print('  C O L O R  M A P')
             for k, v in self.colormap.items():
                 if k < self.settings['colors']:
-                    print(f'{k:3}: {v}')
+                    print(f'{k:5}: {v}')
             return self.CONTINUE
             
     def do_code(self, arg: str) -> bool:
