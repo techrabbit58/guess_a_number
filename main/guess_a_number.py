@@ -38,7 +38,7 @@ class SuperHirn(Cmd):
         7: 'orange',
         8: '(blank)',
     }
-    reverse_colormap = {v, k for k, v in colormap}
+    reverse_colormap = {v: k for k, v in colormap.items()}
 
     secret_code = None
     possible_codes = None
@@ -133,6 +133,11 @@ class SuperHirn(Cmd):
             return self.settings_help_hint()
         finally:
             return self.CONTINUE
+            
+    def do_colormap(self, arg: str) -> bool:
+        for k, v in self.colormap.items():
+            print(f'{k:3}: {v}')
+        return self.CONTINUE
 
     def help_set(self) -> None:
         for line in [
