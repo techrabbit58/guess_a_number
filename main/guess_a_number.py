@@ -132,18 +132,22 @@ class SuperHirn(Cmd):
             return self.settings_help_hint()
         finally:
             return self.CONTINUE
-            
+
     def do_colormap(self, arg: str) -> bool:
-        if not self.got_arguments(arg):
-            for k, v in self.colormap.items():
-                print(f'{k:3}: {v}')
+        """Show the mapping between digits and colors: "colormap"."""
+        if self.got_arguments(arg):
+            return self.wrong_arguments_help_hint()
         else:
-            argc, argv = self.split_args(arg)
-            if argc != 1:
-                return self.wrong_arguments_help_hint()
-            args = argv[0]
-            if args not in ('code'):
-                return self.wrong_argument_type_hint()
+            for k, v in self.colormap.items():
+                if k < self.settings['colors']:
+                    print(f'{k:3}: {v}')
+            return self.CONTINUE
+            
+    def do_code(self, arg: str) -> bool:
+        """Show the current code to colors mapping: "code"."""
+        if self.got_arguments(arg):
+            return self.wrong_arguments_help_hint()
+        else:
             if self.secret_code:
                 print(self.secret_code, '=>', end=' ')
                 for d in self.secret_code:
@@ -151,7 +155,7 @@ class SuperHirn(Cmd):
                 print()
             else:
                 print('+ The code is currently not set. Start session!')
-        return self.CONTINUE
+            return self.CONTINUE
 
     def help_set(self) -> None:
         for line in [
