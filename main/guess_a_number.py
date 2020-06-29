@@ -38,7 +38,6 @@ class SuperHirn(Cmd):
         7: 'orange',
         8: '(blank)',
     }
-    reverse_colormap = {v: k for k, v in colormap.items()}
 
     secret_code = None
     possible_codes = None
@@ -135,8 +134,23 @@ class SuperHirn(Cmd):
             return self.CONTINUE
             
     def do_colormap(self, arg: str) -> bool:
-        for k, v in self.colormap.items():
-            print(f'{k:3}: {v}')
+        if not self.got_arguments(arg):
+            for k, v in self.colormap.items():
+                print(f'{k:3}: {v}')
+        else:
+            argc, argv = self.split_args(arg)
+            if argc != 1:
+                return self.wrong_arguments_help_hint()
+            args = argv[0]
+            if args not in ('code'):
+                return self.wrong_argument_type_hint()
+            if self.secret_code:
+                print(self.secret_code, '=>', end=' ')
+                for d in self.secret_code:
+                    print(self.colormap[d], end=' ')
+                print()
+            else:
+                print('+ The code is currently not set. Start session!')
         return self.CONTINUE
 
     def help_set(self) -> None:
